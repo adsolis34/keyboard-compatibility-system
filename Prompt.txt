@@ -1,0 +1,249 @@
+You are the AI coding agent for my Software Engineering project.
+
+Your task is to generate part of a functional MVP prototype based on the design package I provide. This is for a class assignment where we must evaluate how well an AI coding agent can interpret requirements, use cases, UML models, and GUI descriptions to generate an application prototype.
+
+Before writing code, read and understand the design package files in this project. The design package may include:
+- textual requirements or scenarios
+- key use cases
+- UML diagrams exported as PNG, PDF, XML, or DOT
+- UML summaries
+- GUI sketches, screenshots, or interface descriptions
+- notes about professor feedback and revised diagram logic
+
+The system is called:
+
+Keyboard Compatibility System
+
+High-level purpose:
+The Keyboard Compatibility System helps custom keyboard builders search for keyboard parts, select parts for a build, verify compatibility between selected parts, view trusted compatibility evidence, and handle incompatible or uncertain part selections.
+
+The prototype should be an MVP, not a full production application. Focus on implementing the core use cases clearly and correctly.
+
+Important corrected design logic:
+The system flow should be:
+1. The user starts or works on a keyboard build.
+2. The user selects a keyboard layout and/or preferences.
+3. The user searches for parts.
+4. The user selects/adds a part to the build.
+5. The system verifies compatibility.
+6. If compatible, the part can be added.
+7. If incompatible, the system should warn the user and suggest recovery.
+8. If the part is a group-buy/preorder component, the system should show uncertainty and trusted source information.
+
+Do NOT treat “Search for Parts” as being included inside “Verify Part Compatibility.” Search happens before verification. Verification happens after the user selects or adds a part.
+
+Core use cases to implement:
+1. Search for Parts
+   - User can search or filter keyboard parts.
+   - Parts should include categories such as case, PCB, plate, switches, and keycaps.
+   - Results should display useful information like name, brand, category, layout support, version, and compatibility indicators.
+   - If no results are found, show a clear no-results message and suggest broadening the search.
+
+2. Add Part to Build
+   - User can select a part from search results.
+   - The selected part is checked against the current build before being added.
+   - If compatible, add it to the current build summary.
+   - If a part of the same category already exists, allow replacing it.
+
+3. Verify Part Compatibility
+   - System checks whether the selected part is compatible with the current build.
+   - Compatibility should consider at least:
+     - keyboard layout, such as 60%, 65%, TKL
+     - component category
+     - mount type or version when available
+     - group-buy uncertainty when available
+   - The system should return a compatibility result with:
+     - status: compatible, incompatible, conditional, or uncertain
+     - confidence level
+     - explanation
+
+4. Handle Incompatible Part
+   - If compatibility fails, display a warning message.
+   - Explain why the selected part is incompatible.
+   - Suggest compatible alternatives if possible.
+   - Allow the user to remove, replace, or choose a different part.
+
+5. View Trusted Compatibility Information
+   - Compatibility results should be connected to source references.
+   - Show source/evidence information such as source type, title, and trust level.
+   - This does not need to use real external data. Use local mock data.
+
+6. Evaluate Group-Buy Component
+   - Group-buy or preorder parts may have incomplete specifications.
+   - If a group-buy part is selected, show that compatibility may be uncertain or conditional.
+   - Display trusted source references when available.
+   - Allow the user to include it with a warning or choose another part.
+
+Corrected UML class logic:
+The class design should follow an MVC-oriented object-oriented structure, but do not overcomplicate the prototype.
+
+Important model classes:
+- User
+- Build
+- Layout
+- Part
+- GroupBuyPart extends Part
+- CompatibilityResult
+- SourceReference
+
+Important controller/support classes:
+- BuildController
+- SearchController
+- CompatibilityController
+- PartCatalog
+- CompatibilityEngine
+- SourceReferenceRepository
+
+The GUI/wireframes represent the View layer, so full View classes are optional in code. The implementation can use React components as views.
+
+Expected class/object responsibilities:
+User:
+- can create or view builds
+
+Build:
+- stores selected layout
+- stores desired sound profile and typing feel
+- stores selected parts
+- stores compatibility results
+- has methods like addPart, removePart, updateLayout
+
+Layout:
+- stores layout name and size
+- helps determine whether a part matches the build layout
+
+Part:
+- stores part data such as name, brand, component type, layout support, version, mount type, and specs
+
+GroupBuyPart:
+- extends or specializes Part
+- includes estimated release date, preliminary specs, preorder/group-buy status, and incomplete data handling
+
+CompatibilityResult:
+- stores status, confidence level, explanation, and connected source references
+
+SourceReference:
+- stores source type, title, trust level, and short description/evidence
+
+BuildController:
+- starts a new build
+- selects layout
+- adds a part to the build
+- saves/submits the build
+
+SearchController:
+- searches parts
+- filters by category, layout, brand, or text query
+
+CompatibilityController:
+- verifies part compatibility
+- handles incompatible part results
+
+PartCatalog:
+- stores and returns local mock part data
+
+CompatibilityEngine:
+- applies compatibility rules and returns a CompatibilityResult
+
+SourceReferenceRepository:
+- returns mock source references for a part or compatibility result
+
+Technology requirements:
+Use a simple frontend prototype. Prefer:
+- React
+- local JSON or JavaScript mock data
+- no backend
+- no database
+- no external API calls required
+
+The application should be easy to run locally and submit on GitHub.
+
+Please create or update:
+- source code files
+- local mock data
+- README.md
+- comments in important code sections
+
+The README must explain:
+1. project name
+2. project purpose
+3. implemented use cases
+4. technology stack
+5. how to install dependencies
+6. how to run the app
+7. how to demo the app
+8. which UML/use case logic the prototype follows
+9. limitations of the MVP
+
+Functional prototype requirements:
+The app should have a clear user flow:
+1. Home or dashboard screen
+2. Build setup section where user can select layout and preferences
+3. Part search section
+4. Search results list
+5. Build summary panel
+6. Compatibility result panel
+7. Warning/error panel for incompatible or uncertain parts
+8. Save or submit build button with confirmation
+
+Mock data requirements:
+Include enough local mock data to demonstrate:
+- at least 3 layouts: 60%, 65%, TKL
+- at least 2 cases
+- at least 2 PCBs
+- at least 2 plates
+- at least 2 switch options
+- at least 2 keycap options
+- at least 1 incompatible part scenario
+- at least 1 group-buy/preorder part scenario
+- at least 2 trusted source references
+
+Required demo scenarios:
+The prototype should make it easy to demonstrate these flows:
+
+Demo Flow 1: Successful compatible build
+- select a layout
+- search for a compatible part
+- add it to the build
+- show compatibility success
+
+Demo Flow 2: No search results
+- search for something that does not exist
+- show no-results message
+
+Demo Flow 3: Incompatible part
+- select a part that conflicts with the selected layout or build
+- show incompatible warning
+- explain the issue
+- suggest alternatives
+
+Demo Flow 4: Group-buy uncertainty
+- select a group-buy part
+- show uncertain or conditional compatibility
+- display source references/trust information
+
+Code quality requirements:
+- Keep the code understandable for a student project.
+- Use clear file names.
+- Add comments where the compatibility logic is implemented.
+- Avoid unnecessary complexity.
+- Do not build a full authentication system.
+- Do not use a real database.
+- Do not require paid APIs.
+- Make the UI clean and readable, but functionality matters more than perfect design.
+
+Before writing or changing code:
+1. Inspect the project files.
+2. Summarize the design package you found.
+3. List the use cases you will implement.
+4. List the files you plan to create or modify.
+5. Then generate the implementation.
+
+After generating code:
+1. Explain how to run it.
+2. Explain what was implemented.
+3. Explain what assumptions you made.
+4. Explain what parts of the requirements/UML were simplified.
+5. Identify anything I should test manually.
+
+Important:
+This project is also evaluating how well you, the AI coding agent, interpret the design package. If any requirement, UML detail, or GUI description is unclear, make a reasonable assumption and clearly document it in the README or implementation notes.

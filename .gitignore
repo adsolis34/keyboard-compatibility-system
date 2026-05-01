@@ -1,0 +1,4 @@
+node_modules/
+.codex-tmp/
+dist/
+.DS_Store
