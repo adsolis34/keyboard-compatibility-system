@@ -1,4 +1,4 @@
-import { categoryLabels, layouts, parts } from "../data/mockData.js";
+import { layouts, parts } from "../data/mockData.js";
 import { GroupBuyPart, Layout, Part } from "../models/domain.js";
 
 export class PartCatalog {
@@ -33,10 +33,10 @@ export class PartCatalog {
       const searchableText = [
         part.name,
         part.brand,
-        categoryLabels[part.category],
         part.version,
         part.mountType,
-        part.status,
+        part.compatibilityFamily,
+        ...(part.traits ?? []),
         ...(part.specs ?? []),
       ]
         .join(" ")

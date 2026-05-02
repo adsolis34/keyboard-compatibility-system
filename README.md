@@ -2,43 +2,25 @@
 
 ## Project Purpose
 
-This is a functional MVP prototype for a Software Requirements Engineering design package. It turns the provided UML/use-case logic into a small React frontend that helps a keyboard builder set up a build, search local mock parts, verify compatibility, view evidence, and handle incompatible or uncertain selections.
-
-## Design Package Summary
-
-The provided materials describe a layout-first Keyboard Compatibility System. The user starts or opens a build, selects a layout and preferences, searches for parts, adds a selected part, and then the system verifies compatibility. Search is intentionally separate from verification. If a part is incompatible, the system explains the problem and suggests recovery. If a part is a group-buy/preorder item, the system shows uncertainty and trusted source references.
-
-The implementation follows the MVC-oriented class diagram names from the package:
-
-- Model classes: `User`, `Build`, `Layout`, `Part`, `GroupBuyPart`, `CompatibilityResult`, `SourceReference`
-- Controller/support classes: `BuildController`, `SearchController`, `CompatibilityController`, `PartCatalog`, `CompatibilityEngine`, `SourceReferenceRepository`
-- React components act as the View layer.
-
-## Implemented Use Cases
-
-- Search for Parts
-- Add Part to Build
-- Verify Part Compatibility
-- Handle Incompatible Part
-- View Trusted Compatibility Information
-- Evaluate Group-Buy Component
-- Save/Finalize Build confirmation
+This is a functional MVP prototype for a Software Requirements Engineering design package. It turns the UML/use-case logic into a small React frontend that helps a keyboard builder set up a build, search local mock parts, verify compatibility, view evidence, recover from incompatible choices, and evaluate uncertain group-buy/preorder components.
 
 ## Technology Stack
 
 - React
-- React browser bundles served by a small local Node static server
 - JavaScript ES modules
+- A small local Node static server
 - Local mock data only
-- No backend, database, paid API, or external data calls
+- No backend, authentication, payment flow, vendor integration, or production database
 
-## Install Dependencies
+## Install and Run
+
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-## Run the App
+Run the app:
 
 ```bash
 npm run dev
@@ -50,55 +32,71 @@ Open:
 http://127.0.0.1:5173
 ```
 
-Do not open `index.html` directly from the file system. The app uses JavaScript modules and browser bundles that need to be served through the local Node server.
+Do not open `index.html` directly from the file system. The app uses browser modules that need the local Node server.
 
-## Demo the App
+## Demo Flows
 
-Use the scenario buttons at the top of the app:
+- Compatible demo: starts a 65% build and filters to a compatible KBD67 case. Adding it shows a compatible result with structured reasoning and trusted sources.
+- No results demo: applies a search that returns no matches. The empty state shows the current filters and gives a direct Clear Filters recovery action.
+- Incompatible demo: starts a 65% build with a KBD67 case, then checks a DZ60 PCB. The system explains the layout/family mismatch and shows remove, replace, and suggested-parts actions.
+- Group-buy demo: checks the Aurora65 preorder PCB. The result is uncertain, warns about incomplete final specs, possible shipping/spec changes, incomplete data, and kit/set inclusion risk.
 
-- Compatible demo: filters the list to a compatible 65% case. Add it to see success.
-- No results demo: applies a search that returns no results.
-- Incompatible demo: starts a 65% build with a KBD67 case, then checks a DZ60 PCB and shows an incompatibility warning.
-- Group-buy demo: checks the Aurora65 preorder PCB and shows uncertainty plus source references.
+## Second Iteration Improvements
 
-Manual demo flow:
+- Added clearer spacing and wrapping for part tags, specs, and decision labels.
+- Clarified search scope: search includes name, brand, mount, version, specs, and tags.
+- Added Clear Filters in the search area and no-results state.
+- Added active-filter text to no-results recovery.
+- Added pre-selection clues on part cards, including current-layout matches, build compatibility, incomplete specs, and preference fit.
+- Added mock prices, per-part prices, selected-part prices, and an estimated total before tax.
+- Added simple trait-based preference scoring for sound and typing feel across the combined build.
+- Added recommendation labels such as Recommended, Matches current layout, and Preference Match: High.
+- Strengthened compatible, incompatible, and group-buy explanations.
+- Added named saved builds using localStorage, with a saved-builds list and reopen action.
 
-1. Select a layout in Build Setup.
-2. Search or filter parts.
-3. Select Add or Replace on a result.
-4. Review the compatibility result and trusted evidence.
-5. For group-buy parts, select Include with warning if you want to keep the part.
-6. Save the build to show the confirmation state.
+## Use Case Traceability
 
-## UML and Use-Case Logic Followed
+- Search for Parts: search/filter controls, clarified search scope, active filter display, and Clear Filters support the main and failure flows.
+- Add Part to Build: part cards show price, pre-selection clues, recommendation labels, and replacement confirmation before changing an occupied slot.
+- Verify Part Compatibility: the compatibility result explains layout support, mounting/family alignment, confidence, and trusted source references.
+- Handle Incompatible Part: incompatible results show why the part failed, a suggested alternative, Remove incompatible part, Replace with compatible alternative, and View suggested compatible parts.
+- Evaluate Group-Buy Component: group-buy parts are marked as uncertain when specs are incomplete and include realistic preorder warnings.
+- View Trusted Compatibility Information: source references remain attached to compatibility results with title, source type, trust level, and description.
+- Save Build: Save Build asks for a name, stores a local saved build, lists saved builds, and allows reopening them in the current session/browser.
 
-- Search happens before compatibility verification.
-- Compatibility verification happens only after a user selects or adds a part.
-- `CompatibilityEngine` checks layout support first, then hardware family conflicts across case, PCB, and plate.
-- `CompatibilityController` adds alternatives when a selected part is incompatible.
-- `SourceReferenceRepository` attaches trusted evidence to compatibility results.
-- `GroupBuyPart` extends `Part` and returns uncertain or conditional results when specs are incomplete.
+## Preference Scoring Assumptions
+
+The MVP uses simple mock traits instead of acoustic simulation. Sound and feel are estimated from the combination of case, plate, switches, keycaps, mounting style, and related part attributes.
+
+Examples:
+
+- Aluminum case or aluminum/brass plate: clacky, bright, firm
+- Plastic/polycarbonate case: deep, muted, soft
+- POM/FR4 plate: deep, soft
+- Thick PBT keycaps: deep, muted
+- ABS keycaps: bright, clacky
+- Lubed linear switches: smooth, deep, linear
+- Tactile/clicky switches: tactile, clacky, bright
+
+Scores are intentionally coarse: High, Medium, or Low. They are meant to demonstrate decision support, not predict real keyboard acoustics.
 
 ## MVP Limitations and Assumptions
 
-- All data is local mock data.
+- All data is local mock/sample data.
+- Prices are mock estimates and exclude tax, shipping, tools, stabilizers, and optional modifications.
 - Compatibility rules are simplified to layout support, hardware family, mount type, and group-buy completeness.
-- User accounts, real saved builds, authentication, and database persistence are not implemented.
+- Saved builds are stored in browser localStorage only; there is no account or server sync.
 - Source references are representative examples, not live vendor or community data.
-- The UI is a single-page prototype rather than a full production workflow.
+- The UI is a single-page prototype intended for class demonstration rather than production use.
 
-## Files Created
+## Project Structure
 
-- `package.json`
-- `index.html`
-- `src/main.js`
-- `src/App.js`
-- `src/styles.css`
-- `src/data/mockData.js`
-- `src/models/domain.js`
-- `src/controllers/buildController.js`
-- `src/controllers/searchController.js`
-- `src/controllers/compatibilityController.js`
-- `src/services/partCatalog.js`
-- `src/services/compatibilityEngine.js`
-- `src/services/sourceReferenceRepository.js`
+- `src/App.js`: React view/state layer and demo interactions
+- `src/styles.css`: layout, labels, tag spacing, and recovery styling
+- `src/data/mockData.js`: layouts, parts, sources, mock prices, and mock traits
+- `src/models/domain.js`: domain model classes from the design package
+- `src/controllers/*.js`: build, search, and compatibility controllers
+- `src/services/compatibilityEngine.js`: layout/family/group-buy compatibility rules
+- `src/services/preferenceScoring.js`: sound/feel trait scoring
+- `src/services/partCatalog.js`: mock catalog search and alternatives
+- `src/services/sourceReferenceRepository.js`: trusted compatibility source lookup

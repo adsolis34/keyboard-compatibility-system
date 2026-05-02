@@ -47,7 +47,7 @@ export class CompatibilityEngine {
         partId: part.id,
         status: "uncertain",
         confidenceLevel: "Low",
-        explanation: `${part.name} is a group-buy/preorder component. The layout target matches, but final specifications are incomplete until release.`,
+        explanation: `${part.name} is a group-buy/preorder component. The layout target matches, but final specifications are incomplete until release. Specifications and shipping dates may change, compatibility data may be incomplete, and this part may be sold as part of a kit or set. Confirm what is included before adding it to the build.`,
         sourceReferences,
       });
     }
@@ -65,12 +65,19 @@ export class CompatibilityEngine {
     const replacementText = build.selectedParts[part.category]
       ? ` It will replace ${build.selectedParts[part.category].name} in the ${part.category} slot.`
       : "";
+    const hardwareParts = [part, ...Object.values(build.selectedParts)].filter((selectedPart) =>
+      hardwareCategories.has(selectedPart.category),
+    );
+    const hardwareReason =
+      hardwareCategories.has(part.category) && hardwareParts.length > 0
+        ? ` Hardware alignment is valid because the selected case, PCB, and plate parts checked so far use the ${part.compatibilityFamily} compatibility family and ${part.mountType} mounting style.`
+        : " MX-style switch and keycap checks do not conflict with the current layout or selected hardware.";
 
     return new CompatibilityResult({
       partId: part.id,
       status: "compatible",
       confidenceLevel: "High",
-      explanation: `${part.name} matches the selected ${build.layout.name} layout and does not conflict with the current build.${replacementText}`,
+      explanation: `Compatible because ${part.name} supports the selected ${build.layout.name} layout and does not conflict with the current build.${hardwareReason}${replacementText}`,
       sourceReferences,
     });
   }

@@ -2,9 +2,10 @@ import { BuildController } from "./controllers/buildController.js";
 import { CompatibilityController } from "./controllers/compatibilityController.js";
 import { SearchController } from "./controllers/searchController.js";
 import { categoryLabels, preferenceOptions } from "./data/mockData.js";
-import { User } from "./models/domain.js";
+import { Build, User } from "./models/domain.js";
 import { CompatibilityEngine } from "./services/compatibilityEngine.js";
 import { PartCatalog } from "./services/partCatalog.js";
+import { analyzePreferenceMatch } from "./services/preferenceScoring.js";
 import { SourceReferenceRepository } from "./services/sourceReferenceRepository.js";
 
 const {
@@ -40,9 +41,152 @@ const defaultFilters = {
   brand: "all",
   layoutMode: "current",
 };
+const savedBuildsKey = "keyboardCompatibilitySystem.savedBuilds.v2";
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
 
 function icon(IconComponent, size = 16) {
   return h(IconComponent, { size, "aria-hidden": "true" });
+}
+
+function formatCurrency(value = 0) {
+  return currencyFormatter.format(value);
+}
+
+function getBuildTotal(parts) {
+  return parts.reduce((total, part) => total + (part.price ?? 0), 0);
+}
+
+function loadSavedBuilds() {
+  try {
+    return JSON.parse(window.localStorage.getItem(savedBuildsKey)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSavedBuilds(savedBuilds) {
+  window.localStorage.setItem(savedBuildsKey, JSON.stringify(savedBuilds));
+}
+
+function makeSavedBuildRecord(build, name) {
+  return {
+    id: `saved-${Date.now()}`,
+    name,
+    savedAt: new Date().toISOString(),
+    layoutId: build.layout?.id,
+    desiredSoundProfile: build.desiredSoundProfile,
+    desiredTypingFeel: build.desiredTypingFeel,
+    selectedPartIds: Object.fromEntries(
+      Object.entries(build.selectedParts).map(([category, part]) => [category, part.id]),
+    ),
+  };
+}
+
+function restoreSavedBuild(record) {
+  const layout = partCatalog.getLayoutById(record.layoutId) ?? partCatalog.getLayoutById("65");
+  const selectedParts = Object.entries(record.selectedPartIds ?? {}).reduce(
+    (partsByCategory, [category, partId]) => {
+      const part = partCatalog.getPartById(partId);
+
+      if (part) {
+        partsByCategory[category] = part;
+      }
+
+      return partsByCategory;
+    },
+    {},
+  );
+
+  return new Build({
+    buildId: record.id,
+    layout,
+    desiredSoundProfile: record.desiredSoundProfile ?? "balanced",
+    desiredTypingFeel: record.desiredTypingFeel ?? "firm",
+    status: "saved",
+    selectedParts,
+    compatibilityResults: [],
+  });
+}
+
+function getActiveFilterLabels(filters, build) {
+  const labels = [];
+
+  if (filters.layoutMode === "current" && build.layout) {
+    labels.push(`${build.layout.name} layout`);
+  }
+
+  if (filters.category !== "all") {
+    labels.push(`${categoryLabels[filters.category]} category`);
+  }
+
+  if (filters.brand !== "all") {
+    labels.push(`${filters.brand} brand`);
+  }
+
+  if (filters.query.trim()) {
+    labels.push(`search term "${filters.query.trim()}"`);
+  }
+
+  return labels.length ? labels.join(" + ") : "none";
+}
+
+function getPartGuidance(part, build) {
+  const buildPreferences = {
+    desiredSoundProfile: build.desiredSoundProfile,
+    desiredTypingFeel: build.desiredTypingFeel,
+  };
+  const supportsCurrentLayout = build.layout ? part.supportsLayout(build.layout.id) : false;
+  const hardwareConflict = compatibilityEngine.findHardwareConflict(build, part);
+  const incompleteGroupBuy = part.groupBuy && !part.hasCompleteSpecs();
+  const prospectiveParts = {
+    ...build.selectedParts,
+    [part.category]: part,
+  };
+  const preferenceAnalysis = analyzePreferenceMatch(
+    Object.values(prospectiveParts),
+    buildPreferences,
+  );
+  const labels = [];
+  const clues = [];
+
+  if (supportsCurrentLayout && !hardwareConflict) {
+    labels.push("Matches current layout");
+  }
+
+  if (preferenceAnalysis.level === "High") {
+    labels.push("Preference Match: High");
+  }
+
+  if (
+    supportsCurrentLayout &&
+    !hardwareConflict &&
+    !incompleteGroupBuy &&
+    preferenceAnalysis.level === "High"
+  ) {
+    labels.unshift("Recommended");
+  }
+
+  if (incompleteGroupBuy) {
+    clues.push("Uncertain: incomplete specs");
+  } else if (!supportsCurrentLayout || hardwareConflict) {
+    clues.push("May be incompatible");
+  } else {
+    clues.push("Compatible with current build");
+  }
+
+  if (preferenceAnalysis.level === "High") {
+    clues.push("Good match for selected preferences");
+  }
+
+  return {
+    labels: labels.slice(0, 3),
+    clues,
+    preferenceLevel: preferenceAnalysis.level,
+  };
 }
 
 function App() {
@@ -53,6 +197,7 @@ function App() {
   const [compatibilityResult, setCompatibilityResult] = useState(null);
   const [pendingPart, setPendingPart] = useState(null);
   const [saveMessage, setSaveMessage] = useState("");
+  const [savedBuilds, setSavedBuilds] = useState(loadSavedBuilds);
 
   const activeLayoutId = filters.layoutMode === "current" ? build.layout?.id : "all";
   const results = useMemo(
@@ -65,6 +210,10 @@ function App() {
   );
   const brands = useMemo(() => partCatalog.getBrands(), []);
   const selectedParts = Object.values(build.selectedParts);
+  const preferenceAnalysis = analyzePreferenceMatch(selectedParts, {
+    desiredSoundProfile: build.desiredSoundProfile,
+    desiredTypingFeel: build.desiredTypingFeel,
+  });
   const currentResultPart = compatibilityResult
     ? partCatalog.getPartById(compatibilityResult.partId)
     : null;
@@ -74,6 +223,10 @@ function App() {
       ...currentFilters,
       [name]: value,
     }));
+  }
+
+  function clearFilters() {
+    setFilters(defaultFilters);
   }
 
   function handleLayoutChange(layoutId) {
@@ -96,12 +249,30 @@ function App() {
   }
 
   function attemptAddPart(part) {
+    const existingPart = build.selectedParts[part.category];
+
+    if (existingPart && existingPart.id !== part.id) {
+      const categoryLabel = categoryLabels[part.category].toLowerCase();
+      const shouldReplace = window.confirm(
+        `This will replace your current ${categoryLabel}, ${existingPart.name}. Continue?`,
+      );
+
+      if (!shouldReplace) {
+        setSaveMessage("Replacement canceled.");
+        return;
+      }
+    }
+
     const outcome = buildController.addPartToBuild(build, part);
 
     setCompatibilityResult(outcome.compatibilityResult);
     setPendingPart(outcome.requiresConfirmation ? part : null);
     setBuild(outcome.build);
-    setSaveMessage("");
+    setSaveMessage(
+      existingPart && existingPart.id !== part.id && outcome.compatibilityResult.isCompatible()
+        ? `Replaced ${existingPart.name} with ${part.name}.`
+        : "",
+    );
   }
 
   function includePendingPart() {
@@ -122,8 +293,54 @@ function App() {
   }
 
   function saveBuild() {
+    const defaultName = `${build.layout?.name ?? "Keyboard"} build`;
+    const name = window.prompt("Name this build", defaultName);
+
+    if (!name?.trim()) {
+      setSaveMessage("Save canceled. Add a name to save this build.");
+      return;
+    }
+
+    const savedRecord = makeSavedBuildRecord(build, name.trim());
+    const nextSavedBuilds = [savedRecord, ...savedBuilds].slice(0, 6);
+
+    persistSavedBuilds(nextSavedBuilds);
+    setSavedBuilds(nextSavedBuilds);
     setBuild((currentBuild) => buildController.saveBuild(currentBuild));
-    setSaveMessage("Build saved for demo submission.");
+    setSaveMessage(`Saved "${name.trim()}".`);
+  }
+
+  function openSavedBuild(savedBuild) {
+    setBuild(restoreSavedBuild(savedBuild));
+    setCompatibilityResult(null);
+    setPendingPart(null);
+    setFilters(defaultFilters);
+    setSaveMessage(`Opened "${savedBuild.name}".`);
+  }
+
+  function removeIncompatiblePart(part) {
+    const selectedPart = build.selectedParts[part.category];
+
+    if (selectedPart?.id === part.id) {
+      setBuild((currentBuild) => buildController.removePart(currentBuild, part.category));
+      setSaveMessage(`Removed ${part.name} from the build.`);
+    } else {
+      setSaveMessage(`${part.name} was not added to the build.`);
+    }
+
+    setCompatibilityResult(null);
+    setPendingPart(null);
+  }
+
+  function viewSuggestedParts(category) {
+    setFilters({
+      ...defaultFilters,
+      category,
+      layoutMode: "current",
+    });
+    setSaveMessage(
+      `Showing compatible ${categoryLabels[category]} suggestions for ${build.layout?.name}.`,
+    );
   }
 
   function resetBuild(layoutId = "65") {
@@ -204,6 +421,7 @@ function App() {
           brands,
           results,
           onFilter: updateFilter,
+          onClearFilters: clearFilters,
           onAdd: attemptAddPart,
         }),
       ),
@@ -213,15 +431,20 @@ function App() {
         h(BuildSummary, {
           build,
           selectedParts,
+          preferenceAnalysis,
+          savedBuilds,
           saveMessage,
           onRemove: removePart,
+          onOpenSavedBuild: openSavedBuild,
         }),
         h(CompatibilityPanel, {
           result: compatibilityResult,
           part: currentResultPart,
           pendingPart,
           onInclude: includePendingPart,
+          onRemoveIncompatible: removeIncompatiblePart,
           onTryAlternative: attemptAddPart,
+          onViewSuggestedParts: viewSuggestedParts,
         }),
       ),
     ),
@@ -337,7 +560,9 @@ function BuildSetup({ build, onLayoutChange, onPreferenceChange }) {
   );
 }
 
-function PartSearch({ build, filters, brands, results, onFilter, onAdd }) {
+function PartSearch({ build, filters, brands, results, onFilter, onClearFilters, onAdd }) {
+  const activeFilterText = getActiveFilterLabels(filters, build);
+
   return h(
     "section",
     { className: "panel" },
@@ -352,9 +577,14 @@ function PartSearch({ build, filters, brands, results, onFilter, onAdd }) {
         h("input", {
           type: "search",
           value: filters.query,
-          placeholder: "name, brand, mount, version",
+          placeholder: "name, brand, mount, version, specs",
           onChange: (event) => onFilter("query", event.target.value),
         }),
+        h(
+          "span",
+          { className: "field-help" },
+          "Search also checks specs and tags such as material, mount, and kit coverage.",
+        ),
       ),
       h(
         "label",
@@ -397,6 +627,16 @@ function PartSearch({ build, filters, brands, results, onFilter, onAdd }) {
           h("option", { value: "all" }, "All layouts"),
         ),
       ),
+      h(
+        "div",
+        { className: "filter-actions" },
+        h(
+          "button",
+          { className: "secondary-button", type: "button", onClick: onClearFilters },
+          icon(RotateCcw),
+          "Clear Filters",
+        ),
+      ),
     ),
     h(
       "div",
@@ -413,7 +653,14 @@ function PartSearch({ build, filters, brands, results, onFilter, onAdd }) {
             "div",
             null,
             h("strong", null, "No matching parts found."),
-            h("p", null, "Broaden the search, switch to all layouts, or clear one of the filters."),
+            h("p", null, `Current filters: ${activeFilterText}.`),
+            h("p", null, "Broaden the search, switch to all layouts, or clear the filters."),
+            h(
+              "button",
+              { className: "secondary-button empty-action", type: "button", onClick: onClearFilters },
+              icon(RotateCcw),
+              "Clear Filters",
+            ),
           ),
         )
       : h(
@@ -428,6 +675,7 @@ function PartSearch({ build, filters, brands, results, onFilter, onAdd }) {
                 build.selectedParts[part.category] &&
                   build.selectedParts[part.category]?.id !== part.id,
               ),
+              guidance: getPartGuidance(part, build),
               onAdd: () => onAdd(part),
             }),
           ),
@@ -435,7 +683,7 @@ function PartSearch({ build, filters, brands, results, onFilter, onAdd }) {
   );
 }
 
-function PartRow({ part, isSelected, isReplacement, onAdd }) {
+function PartRow({ part, isSelected, isReplacement, guidance, onAdd }) {
   return h(
     "article",
     { className: `result-row ${part.groupBuy ? "group-buy-row" : ""}` },
@@ -445,8 +693,20 @@ function PartRow({ part, isSelected, isReplacement, onAdd }) {
       h(
         "div",
         { className: "result-heading" },
-        h("h3", null, part.name),
-        h(StatusBadge, { status: part.groupBuy ? "group-buy" : part.status }),
+        h(
+          "div",
+          null,
+          h("h3", null, part.name),
+          h("strong", { className: "part-price" }, formatCurrency(part.price)),
+        ),
+        h(
+          "div",
+          { className: "heading-badges" },
+          h(StatusBadge, { status: part.groupBuy ? "group-buy" : part.status }),
+          guidance.labels.map((label) =>
+            h("span", { key: label, className: "recommendation-label" }, label),
+          ),
+        ),
       ),
       h(
         "p",
@@ -459,6 +719,11 @@ function PartRow({ part, isSelected, isReplacement, onAdd }) {
         h("span", null, part.version),
         h("span", null, part.mountType),
         h("span", null, part.compatibilityFamily),
+      ),
+      h(
+        "div",
+        { className: "selection-clues" },
+        guidance.clues.map((clue) => h("span", { key: clue }, clue)),
       ),
       h(
         "div",
@@ -475,7 +740,17 @@ function PartRow({ part, isSelected, isReplacement, onAdd }) {
   );
 }
 
-function BuildSummary({ build, selectedParts, saveMessage, onRemove }) {
+function BuildSummary({
+  build,
+  selectedParts,
+  preferenceAnalysis,
+  savedBuilds,
+  saveMessage,
+  onRemove,
+  onOpenSavedBuild,
+}) {
+  const estimatedTotal = getBuildTotal(selectedParts);
+
   return h(
     "section",
     { className: "panel side-panel" },
@@ -491,6 +766,14 @@ function BuildSummary({ build, selectedParts, saveMessage, onRemove }) {
       h("strong", null, build.desiredTypingFeel),
       h("span", null, "Status"),
       h("strong", null, build.status),
+      h("span", null, "Estimated total"),
+      h("strong", null, `${formatCurrency(estimatedTotal)} before tax`),
+    ),
+    h(
+      "div",
+      { className: "preference-summary" },
+      h("strong", null, `Preference Match: ${preferenceAnalysis.level}`),
+      h("p", null, preferenceAnalysis.explanation.replace(/^Preference Match: [^.]+\. /, "")),
     ),
     h(
       "div",
@@ -500,7 +783,13 @@ function BuildSummary({ build, selectedParts, saveMessage, onRemove }) {
         return h(
           "div",
           { className: "selected-row", key: category },
-          h("div", null, h("span", null, label), h("strong", null, part ? part.name : "Not selected")),
+          h(
+            "div",
+            null,
+            h("span", null, label),
+            h("strong", null, part ? part.name : "Not selected"),
+            part ? h("span", null, formatCurrency(part.price)) : null,
+          ),
           part
             ? h(
                 "button",
@@ -518,11 +807,45 @@ function BuildSummary({ build, selectedParts, saveMessage, onRemove }) {
           { className: "muted" },
           `${selectedParts.length} selected part${selectedParts.length === 1 ? "" : "s"}.`,
         ),
+    h(
+      "div",
+      { className: "saved-builds" },
+      h("h4", null, "Saved builds"),
+      savedBuilds.length === 0
+        ? h("p", { className: "muted" }, "No saved builds yet.")
+        : savedBuilds.map((savedBuild) =>
+            h(
+              "button",
+              {
+                key: savedBuild.id,
+                type: "button",
+                className: "saved-build-button",
+                onClick: () => onOpenSavedBuild(savedBuild),
+              },
+              h("span", null, savedBuild.name),
+              h(
+                "small",
+                null,
+                `${Object.keys(savedBuild.selectedPartIds ?? {}).length} part${
+                  Object.keys(savedBuild.selectedPartIds ?? {}).length === 1 ? "" : "s"
+                }`,
+              ),
+            ),
+          ),
+    ),
     saveMessage ? h("p", { className: "save-message" }, saveMessage) : null,
   );
 }
 
-function CompatibilityPanel({ result, part, pendingPart, onInclude, onTryAlternative }) {
+function CompatibilityPanel({
+  result,
+  part,
+  pendingPart,
+  onInclude,
+  onRemoveIncompatible,
+  onTryAlternative,
+  onViewSuggestedParts,
+}) {
   if (!result || !part) {
     return h(
       "section",
@@ -552,6 +875,57 @@ function CompatibilityPanel({ result, part, pendingPart, onInclude, onTryAlterna
     ),
     h("h3", null, part.name),
     h("p", null, result.explanation),
+    result.status === "incompatible"
+      ? h(
+          "div",
+          { className: "recovery-box" },
+          h("h4", null, "Recovery actions"),
+          result.alternatives[0]
+            ? h(
+                "p",
+                null,
+                `Suggested alternative: ${result.alternatives[0].name}, which matches the ${result.alternatives[0].layoutSupport.join(", ")} layout.`,
+              )
+            : h(
+                "p",
+                null,
+                "No compatible alternative is available in the mock catalog for this exact slot.",
+              ),
+          h(
+            "div",
+            { className: "warning-actions" },
+            h(
+              "button",
+              {
+                className: "secondary-button",
+                type: "button",
+                onClick: () => onRemoveIncompatible(part),
+              },
+              "Remove incompatible part",
+            ),
+            result.alternatives[0]
+              ? h(
+                  "button",
+                  {
+                    className: "primary-button",
+                    type: "button",
+                    onClick: () => onTryAlternative(result.alternatives[0]),
+                  },
+                  "Replace with compatible alternative",
+                )
+              : null,
+            h(
+              "button",
+              {
+                className: "secondary-button",
+                type: "button",
+                onClick: () => onViewSuggestedParts(part.category),
+              },
+              "View suggested compatible parts",
+            ),
+          ),
+        )
+      : null,
     pendingPart
       ? h(
           "div",
