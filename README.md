@@ -53,6 +53,7 @@ Do not open `index.html` directly from the file system. The app uses browser mod
 - Added recommendation labels such as Recommended, Matches current layout, and Preference Match: High.
 - Strengthened compatible, incompatible, and group-buy explanations.
 - Added named saved builds using localStorage, with a saved-builds list and reopen action.
+- Added per-part strongest trait previews plus live Deep/Clacky/Muted/Bright/Soft/Firm/Tactile/Smooth build bars, final direction, and top contributors.
 
 ## Use Case Traceability
 

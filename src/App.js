@@ -5,7 +5,11 @@ import { categoryLabels, preferenceOptions } from "./data/mockData.js";
 import { Build, User } from "./models/domain.js";
 import { CompatibilityEngine } from "./services/compatibilityEngine.js";
 import { PartCatalog } from "./services/partCatalog.js";
-import { analyzePreferenceMatch } from "./services/preferenceScoring.js";
+import {
+  analyzePreferenceMatch,
+  getBuildTraitProfile,
+  getPartTraitPreview,
+} from "./services/preferenceScoring.js";
 import { SourceReferenceRepository } from "./services/sourceReferenceRepository.js";
 
 const {
@@ -214,6 +218,7 @@ function App() {
     desiredSoundProfile: build.desiredSoundProfile,
     desiredTypingFeel: build.desiredTypingFeel,
   });
+  const traitProfile = getBuildTraitProfile(selectedParts);
   const currentResultPart = compatibilityResult
     ? partCatalog.getPartById(compatibilityResult.partId)
     : null;
@@ -432,6 +437,7 @@ function App() {
           build,
           selectedParts,
           preferenceAnalysis,
+          traitProfile,
           savedBuilds,
           saveMessage,
           onRemove: removePart,
@@ -676,6 +682,7 @@ function PartSearch({ build, filters, brands, results, onFilter, onClearFilters,
                   build.selectedParts[part.category]?.id !== part.id,
               ),
               guidance: getPartGuidance(part, build),
+              traitPreview: getPartTraitPreview(part),
               onAdd: () => onAdd(part),
             }),
           ),
@@ -683,7 +690,7 @@ function PartSearch({ build, filters, brands, results, onFilter, onClearFilters,
   );
 }
 
-function PartRow({ part, isSelected, isReplacement, guidance, onAdd }) {
+function PartRow({ part, isSelected, isReplacement, guidance, traitPreview, onAdd }) {
   return h(
     "article",
     { className: `result-row ${part.groupBuy ? "group-buy-row" : ""}` },
@@ -727,6 +734,22 @@ function PartRow({ part, isSelected, isReplacement, guidance, onAdd }) {
       ),
       h(
         "div",
+        { className: "trait-preview", "aria-label": `${part.name} sound and feel contribution` },
+        h(
+          "span",
+          null,
+          h("strong", null, "Highest trait:"),
+          ` ${traitPreview.highestTraitLabel}`,
+        ),
+        h(
+          "span",
+          null,
+          h("strong", null, "Contributes:"),
+          ` ${traitPreview.contributionLabel}`,
+        ),
+      ),
+      h(
+        "div",
         { className: "spec-list" },
         part.getSpecifications().map((spec) => h("span", { key: spec }, spec)),
       ),
@@ -744,6 +767,7 @@ function BuildSummary({
   build,
   selectedParts,
   preferenceAnalysis,
+  traitProfile,
   savedBuilds,
   saveMessage,
   onRemove,
@@ -774,6 +798,27 @@ function BuildSummary({
       { className: "preference-summary" },
       h("strong", null, `Preference Match: ${preferenceAnalysis.level}`),
       h("p", null, preferenceAnalysis.explanation.replace(/^Preference Match: [^.]+\. /, "")),
+    ),
+    h(
+      "div",
+      { className: "trait-dashboard" },
+      h(
+        "div",
+        { className: "direction-summary" },
+        h("span", null, "Build Sound & Feel Direction"),
+        h("strong", null, traitProfile.directionLabel),
+      ),
+      h(
+        "div",
+        { className: "trait-bars" },
+        traitProfile.bars.map((bar) => h(TraitBar, { key: bar.trait, bar })),
+      ),
+      h(
+        "div",
+        { className: "contributors-summary" },
+        h("span", null, "Top contributors"),
+        h("strong", null, traitProfile.topContributorLabel),
+      ),
     ),
     h(
       "div",
@@ -834,6 +879,34 @@ function BuildSummary({
           ),
     ),
     saveMessage ? h("p", { className: "save-message" }, saveMessage) : null,
+  );
+}
+
+function TraitBar({ bar }) {
+  const contributorText =
+    bar.contributorCount === 1 ? "1 part" : `${bar.contributorCount} parts`;
+
+  return h(
+    "div",
+    { className: "trait-bar-row" },
+    h(
+      "div",
+      { className: "trait-bar-label" },
+      h("span", null, bar.label),
+      h("small", null, bar.contributorCount > 0 ? contributorText : "0 parts"),
+    ),
+    h(
+      "div",
+      {
+        className: "trait-track",
+        role: "meter",
+        "aria-label": `${bar.label} contribution`,
+        "aria-valuemin": 0,
+        "aria-valuemax": 100,
+        "aria-valuenow": Math.round(bar.percent),
+      },
+      h("span", { style: { width: `${bar.percent}%` } }),
+    ),
   );
 }
 

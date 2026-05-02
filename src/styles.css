@@ -275,6 +275,7 @@ button:focus-visible {
 .part-meta,
 .spec-list,
 .selection-clues,
+.trait-preview,
 .heading-badges {
   gap: 10px;
   flex-wrap: wrap;
@@ -302,7 +303,8 @@ button:focus-visible {
 }
 
 .spec-list,
-.selection-clues {
+.selection-clues,
+.trait-preview {
   margin-top: 10px;
 }
 
@@ -310,6 +312,22 @@ button:focus-visible {
   background: #f2f6fb;
   color: #265b86;
   border: 1px solid #cadced;
+}
+
+.trait-preview {
+  display: flex;
+  align-items: center;
+  border: 1px solid #d6e0da;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f8faf8;
+  color: #405149;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.trait-preview strong {
+  color: var(--ink);
 }
 
 .recommendation-label {
@@ -389,6 +407,76 @@ button:focus-visible {
   margin: 6px 0 0;
   color: #44546a;
   line-height: 1.45;
+}
+
+.trait-dashboard {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+.direction-summary,
+.contributors-summary {
+  display: grid;
+  gap: 4px;
+}
+
+.direction-summary span,
+.contributors-summary span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.direction-summary strong,
+.contributors-summary strong {
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.trait-bars {
+  display: grid;
+  gap: 9px;
+}
+
+.trait-bar-row {
+  display: grid;
+  gap: 5px;
+}
+
+.trait-bar-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #35443d;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.trait-bar-label small {
+  color: var(--text-muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.trait-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8efeb;
+}
+
+.trait-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--blue);
+  transition: width 180ms ease;
 }
 
 .build-facts span,

@@ -13,6 +13,30 @@ const feelTraitTargets = {
   tactile: ["tactile"],
 };
 
+export const visibleTraitOrder = [
+  "deep",
+  "clacky",
+  "muted",
+  "bright",
+  "soft",
+  "firm",
+  "tactile",
+  "smooth",
+];
+
+const visibleTraitSet = new Set(visibleTraitOrder);
+
+const traitLabels = {
+  bright: "Bright",
+  clacky: "Clacky",
+  deep: "Deep",
+  firm: "Firm",
+  muted: "Muted",
+  smooth: "Smooth",
+  soft: "Soft",
+  tactile: "Tactile",
+};
+
 const opposingTraits = {
   clacky: ["deep", "muted"],
   deep: ["clacky", "bright"],
@@ -38,6 +62,115 @@ function formatList(values) {
   }
 
   return `${values.slice(0, -1).join(", ")}, and ${values.at(-1)}`;
+}
+
+export function formatTraitName(trait) {
+  return traitLabels[trait] ?? trait;
+}
+
+export function getPartTraitPreview(part) {
+  const contributedTraits = unique((part.traits ?? []).filter((trait) => visibleTraitSet.has(trait)));
+  const highestTrait = contributedTraits[0] ?? null;
+  const contributedTraitLabels = contributedTraits.map(formatTraitName);
+
+  return {
+    highestTrait,
+    highestTraitLabel: highestTrait ? formatTraitName(highestTrait) : "Neutral",
+    contributedTraits,
+    contributionLabel: contributedTraitLabels.length
+      ? contributedTraitLabels.join(" / ")
+      : "No strong sound/feel trait",
+  };
+}
+
+export function getBuildTraitProfile(parts) {
+  const selectedParts = parts.filter(Boolean);
+  const scores = Object.fromEntries(visibleTraitOrder.map((trait) => [trait, 0]));
+  const contributorsByTrait = Object.fromEntries(visibleTraitOrder.map((trait) => [trait, []]));
+  const firstContributionOrder = Object.fromEntries(
+    visibleTraitOrder.map((trait) => [trait, Number.POSITIVE_INFINITY]),
+  );
+  let contributionOrder = 0;
+  const visibleTraitRank = Object.fromEntries(
+    visibleTraitOrder.map((trait, index) => [trait, index]),
+  );
+  const partImpacts = selectedParts.map((part, partIndex) => {
+    const contributedTraits = getPartTraitPreview(part).contributedTraits;
+    const impactScore = contributedTraits.reduce((total, trait, index) => {
+      const weight = index === 0 ? 1.5 : 1;
+
+      scores[trait] += weight;
+      contributorsByTrait[trait].push(part.name);
+      if (firstContributionOrder[trait] === Number.POSITIVE_INFINITY) {
+        firstContributionOrder[trait] = contributionOrder;
+      }
+      contributionOrder += 1;
+
+      return total + weight;
+    }, 0);
+
+    return {
+      part,
+      partIndex,
+      impactScore,
+      reason: part.traitReason ?? part.name,
+    };
+  });
+  const maxScore = Math.max(...Object.values(scores), 1);
+  const rankedTraits = visibleTraitOrder
+    .filter((trait) => scores[trait] > 0)
+    .sort(
+      (first, second) =>
+        scores[second] - scores[first] ||
+        firstContributionOrder[first] - firstContributionOrder[second] ||
+        visibleTraitRank[first] - visibleTraitRank[second],
+    );
+  const topTraits = rankedTraits.slice(0, 3);
+  const topTraitSet = new Set(topTraits);
+  const rankedContributors = partImpacts
+    .map((impact) => {
+      const matchingTraitScore = getPartTraitPreview(impact.part).contributedTraits.reduce(
+        (total, trait, index) => {
+          if (!topTraitSet.has(trait)) {
+            return total;
+          }
+
+          return total + (index === 0 ? 1.5 : 1);
+        },
+        0,
+      );
+
+      return {
+        ...impact,
+        matchingTraitScore,
+      };
+    })
+    .filter((impact) => impact.matchingTraitScore > 0)
+    .sort(
+      (first, second) =>
+        second.matchingTraitScore - first.matchingTraitScore ||
+        second.impactScore - first.impactScore ||
+        first.partIndex - second.partIndex,
+    )
+    .slice(0, 3)
+    .map((impact) => impact.reason);
+  const topContributors = unique(rankedContributors);
+
+  return {
+    bars: visibleTraitOrder.map((trait) => ({
+      trait,
+      label: formatTraitName(trait),
+      score: scores[trait],
+      percent: scores[trait] > 0 ? Math.max((scores[trait] / maxScore) * 100, 8) : 0,
+      contributorCount: contributorsByTrait[trait].length,
+    })),
+    dominantTraits: topTraits,
+    directionLabel: topTraits.length
+      ? topTraits.map(formatTraitName).join(" / ")
+      : "Add parts to estimate direction",
+    topContributors,
+    topContributorLabel: topContributors.length ? topContributors.join(", ") : "None yet",
+  };
 }
 
 export function getPreferenceTargets({ desiredSoundProfile, desiredTypingFeel }) {
