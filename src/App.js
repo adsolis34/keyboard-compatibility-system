@@ -15,6 +15,7 @@ import { SourceReferenceRepository } from "./services/sourceReferenceRepository.
 const {
   AlertTriangle,
   Box,
+  ChevronDown,
   CheckCircle2,
   Info,
   PackagePlus,
@@ -23,6 +24,7 @@ const {
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Trash2,
   XCircle,
 } = window.LucideReact;
 const { useMemo, useState } = window.React;
@@ -323,6 +325,21 @@ function App() {
     setSaveMessage(`Opened "${savedBuild.name}".`);
   }
 
+  function deleteSavedBuild(savedBuild) {
+    const shouldDelete = window.confirm(`Delete saved build "${savedBuild.name}"?`);
+
+    if (!shouldDelete) {
+      setSaveMessage("Delete canceled.");
+      return;
+    }
+
+    const nextSavedBuilds = savedBuilds.filter((buildRecord) => buildRecord.id !== savedBuild.id);
+
+    persistSavedBuilds(nextSavedBuilds);
+    setSavedBuilds(nextSavedBuilds);
+    setSaveMessage(`Deleted "${savedBuild.name}".`);
+  }
+
   function removeIncompatiblePart(part) {
     const selectedPart = build.selectedParts[part.category];
 
@@ -442,6 +459,7 @@ function App() {
           saveMessage,
           onRemove: removePart,
           onOpenSavedBuild: openSavedBuild,
+          onDeleteSavedBuild: deleteSavedBuild,
         }),
         h(CompatibilityPanel, {
           result: compatibilityResult,
@@ -738,14 +756,14 @@ function PartRow({ part, isSelected, isReplacement, guidance, traitPreview, onAd
         h(
           "span",
           null,
-          h("strong", null, "Highest trait:"),
-          ` ${traitPreview.highestTraitLabel}`,
+          h("strong", null, "Sound:"),
+          ` ${traitPreview.soundContributionLabel}`,
         ),
         h(
           "span",
           null,
-          h("strong", null, "Contributes:"),
-          ` ${traitPreview.contributionLabel}`,
+          h("strong", null, "Feel:"),
+          ` ${traitPreview.feelContributionLabel}`,
         ),
       ),
       h(
@@ -772,8 +790,11 @@ function BuildSummary({
   saveMessage,
   onRemove,
   onOpenSavedBuild,
+  onDeleteSavedBuild,
 }) {
   const estimatedTotal = getBuildTotal(selectedParts);
+  const selectedPartCount = selectedParts.length;
+  const requiredPartCount = Object.keys(categoryLabels).length;
 
   return h(
     "section",
@@ -785,11 +806,11 @@ function BuildSummary({
       h("span", null, "Layout"),
       h("strong", null, build.layout?.name),
       h("span", null, "Sound"),
-      h("strong", null, build.desiredSoundProfile),
+      h("strong", null, traitProfile.sound.directionLabel),
       h("span", null, "Feel"),
-      h("strong", null, build.desiredTypingFeel),
-      h("span", null, "Status"),
-      h("strong", null, build.status),
+      h("strong", null, traitProfile.feel.directionLabel),
+      h("span", null, "Parts selected"),
+      h("strong", null, `${selectedPartCount}/${requiredPartCount}`),
       h("span", null, "Estimated total"),
       h("strong", null, `${formatCurrency(estimatedTotal)} before tax`),
     ),
@@ -798,27 +819,6 @@ function BuildSummary({
       { className: "preference-summary" },
       h("strong", null, `Preference Match: ${preferenceAnalysis.level}`),
       h("p", null, preferenceAnalysis.explanation.replace(/^Preference Match: [^.]+\. /, "")),
-    ),
-    h(
-      "div",
-      { className: "trait-dashboard" },
-      h(
-        "div",
-        { className: "direction-summary" },
-        h("span", null, "Build Sound & Feel Direction"),
-        h("strong", null, traitProfile.directionLabel),
-      ),
-      h(
-        "div",
-        { className: "trait-bars" },
-        traitProfile.bars.map((bar) => h(TraitBar, { key: bar.trait, bar })),
-      ),
-      h(
-        "div",
-        { className: "contributors-summary" },
-        h("span", null, "Top contributors"),
-        h("strong", null, traitProfile.topContributorLabel),
-      ),
     ),
     h(
       "div",
@@ -845,13 +845,27 @@ function BuildSummary({
         );
       }),
     ),
-    selectedParts.length === 0
+    selectedPartCount === 0
       ? h("p", { className: "muted" }, "No parts added yet.")
       : h(
           "p",
           { className: "muted" },
-          `${selectedParts.length} selected part${selectedParts.length === 1 ? "" : "s"}.`,
+          `${selectedPartCount} selected part${selectedPartCount === 1 ? "" : "s"}.`,
         ),
+    h(
+      "div",
+      { className: "trait-dashboard" },
+      h(TraitGroup, {
+        profile: traitProfile.sound,
+        title: "Build Sound",
+        contributorTitle: "Top sound contributors",
+      }),
+      h(TraitGroup, {
+        profile: traitProfile.feel,
+        title: "Build Typing Feel",
+        contributorTitle: "Top feel contributors",
+      }),
+    ),
     h(
       "div",
       { className: "saved-builds" },
@@ -860,25 +874,63 @@ function BuildSummary({
         ? h("p", { className: "muted" }, "No saved builds yet.")
         : savedBuilds.map((savedBuild) =>
             h(
-              "button",
-              {
-                key: savedBuild.id,
-                type: "button",
-                className: "saved-build-button",
-                onClick: () => onOpenSavedBuild(savedBuild),
-              },
-              h("span", null, savedBuild.name),
+              "div",
+              { key: savedBuild.id, className: "saved-build-row" },
               h(
-                "small",
-                null,
-                `${Object.keys(savedBuild.selectedPartIds ?? {}).length} part${
-                  Object.keys(savedBuild.selectedPartIds ?? {}).length === 1 ? "" : "s"
-                }`,
+                "button",
+                {
+                  type: "button",
+                  className: "saved-build-button",
+                  onClick: () => onOpenSavedBuild(savedBuild),
+                },
+                h("span", null, savedBuild.name),
+                h(
+                  "small",
+                  null,
+                  `${Object.keys(savedBuild.selectedPartIds ?? {}).length} part${
+                    Object.keys(savedBuild.selectedPartIds ?? {}).length === 1 ? "" : "s"
+                  }`,
+                ),
+              ),
+              h(
+                "button",
+                {
+                  type: "button",
+                  className: "saved-build-delete",
+                  "aria-label": `Delete saved build ${savedBuild.name}`,
+                  onClick: () => onDeleteSavedBuild(savedBuild),
+                },
+                icon(Trash2, 16),
               ),
             ),
           ),
     ),
     saveMessage ? h("p", { className: "save-message" }, saveMessage) : null,
+  );
+}
+
+function TraitGroup({ profile, title, contributorTitle }) {
+  return h(
+    "details",
+    { className: `trait-group ${profile.bars[0]?.kind ?? ""}` },
+    h(
+      "summary",
+      { className: "direction-summary" },
+      h("span", { className: "direction-label" }, title),
+      h("strong", null, profile.directionLabel),
+      h("span", { className: "direction-caret" }, icon(ChevronDown, 16)),
+    ),
+    h(
+      "div",
+      { className: "trait-bars" },
+      profile.bars.map((bar) => h(TraitBar, { key: bar.trait, bar })),
+    ),
+    h(
+      "div",
+      { className: "contributors-summary" },
+      h("span", null, contributorTitle),
+      h("strong", null, profile.topContributorLabel),
+    ),
   );
 }
 
@@ -898,7 +950,7 @@ function TraitBar({ bar }) {
     h(
       "div",
       {
-        className: "trait-track",
+        className: `trait-track ${bar.kind}`,
         role: "meter",
         "aria-label": `${bar.label} contribution`,
         "aria-valuemin": 0,
